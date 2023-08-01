@@ -13,5 +13,6 @@ powerbuttond: powerbuttond.o
 clean:
 	rm -f powerbuttond powerbuttond.o
 
-install: all
-	install -D -m 755 powerbuttond $(DESTDIR)/usr/lib/hwsupport/powerbuttond 
+install: all LICENSE
+	install -D -m 755 powerbuttond $(DESTDIR)/usr/lib/hwsupport/powerbuttond
+	install -D -m 644 LICENSE $(DESTDIR)/usr/share/licenses/powerbuttond
