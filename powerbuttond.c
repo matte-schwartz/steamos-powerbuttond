@@ -40,7 +40,10 @@ void do_press(const char* type) {
 	snprintf(press, sizeof(press), "steam://%spowerpress", type);
 
 	pid_t pid = vfork();
-	if (pid) {
+	if (pid < 0) {
+		return;
+	}
+	if (pid > 0) {
 		while (true) {
 			if (waitpid(pid, NULL, 0) >= 0) {
 				break;
@@ -64,6 +67,10 @@ int main() {
 	sigaction(SIGALRM, &sa, NULL);
 
 	struct libevdev* dev = find_dev();
+	if (!dev) {
+		return 1;
+	}
+
 	bool press_active = false;
 	while (true) {
 		struct input_event ev;
@@ -81,6 +88,7 @@ int main() {
 			}
 		} else if (res == -EINTR && press_active) {
 			press_active = false;
+			alarm(0);
 			do_press("long");
 		}
 	}
