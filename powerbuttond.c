@@ -7,12 +7,14 @@
 #include <libevdev/libevdev.h>
 #include <limits.h>
 #include <signal.h>
+#include <spawn.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+extern char** environ;
 
 void signal_handler(int) {
 }
@@ -39,22 +41,17 @@ void do_press(const char* type) {
 	snprintf(steam, sizeof(steam), "%s/.steam/root/ubuntu12_32/steam", home);
 	snprintf(press, sizeof(press), "steam://%spowerpress", type);
 
-	pid_t pid = vfork();
-	if (pid < 0) {
+	pid_t pid;
+	if (posix_spawn(&pid, steam, NULL, NULL, args, environ) < 0) {
 		return;
 	}
-	if (pid > 0) {
-		while (true) {
-			if (waitpid(pid, NULL, 0) >= 0) {
-				break;
-			}
-			if (errno != EINTR && errno != EAGAIN) {
-				break;
-			}
+	while (true) {
+		if (waitpid(pid, NULL, 0) > 0) {
+			break;
 		}
-	} else {
-		execv(steam, args);
-		_exit(0);
+		if (errno != EINTR && errno != EAGAIN) {
+			break;
+		}
 	}
 }
 
