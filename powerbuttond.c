@@ -19,14 +19,18 @@ extern char** environ;
 void signal_handler(int) {
 }
 
-struct libevdev* find_dev(void) {
-	int fd = open("/dev/input/by-path/platform-i8042-serio-0-event-kbd", O_RDONLY);
+struct libevdev* find_dev(const char* path) {
+	int fd = open(path, O_RDONLY);
 	if (fd < 0) {
 		return NULL;
 	}
 	struct libevdev* dev;
 	if (libevdev_new_from_fd(fd, &dev) < 0) {
 		close(fd);
+		return NULL;
+	}
+	if (!libevdev_has_event_code(dev, EV_KEY, KEY_POWER)) {
+		libevdev_free(dev);
 		return NULL;
 	}
 	return dev;
@@ -55,7 +59,11 @@ void do_press(const char* type) {
 	}
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+	const char* path = "/dev/input/by-path/platform-i8042-serio-0-event-kbd";
+	if (argc >= 2) {
+		path = argv[1];
+	}
 	struct sigaction sa = {
 		.sa_handler = signal_handler,
 		.sa_flags = SA_NOCLDSTOP,
@@ -63,7 +71,7 @@ int main() {
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGALRM, &sa, NULL);
 
-	struct libevdev* dev = find_dev();
+	struct libevdev* dev = find_dev(path);
 	if (!dev) {
 		return 1;
 	}
