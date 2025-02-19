@@ -1,0 +1,8 @@
+[Unit]
+Description=Power Button daemon for Steam
+
+[Service]
+ExecStart=/usr/lib/hwsupport/powerbuttond /dev/input/%I
+
+[Install]
+WantedBy=gamescope-session.service
