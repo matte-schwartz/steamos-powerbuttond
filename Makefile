@@ -17,3 +17,5 @@ install: all LICENSE
 	install -Ds -m 755 powerbuttond $(DESTDIR)/usr/lib/hwsupport/powerbuttond
 	install -D -m 644 LICENSE $(DESTDIR)/usr/share/licenses/powerbuttond
 	install -D -m 644 powerbuttond@.service $(DESTDIR)/usr/lib/systemd/user/powerbuttond@.service
+	install -D -m 644 steamos-power-button.rules $(DESTDIR)/usr/lib/udev/rules.d/80-steamos-power-button.rules
+	install -D -m 644 steamos-power-button.hwdb $(DESTDIR)/usr/lib/udev/hwdb.d/80-steamos-power-button.hwdb
