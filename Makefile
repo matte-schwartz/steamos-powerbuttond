@@ -16,4 +16,4 @@ clean:
 install: all LICENSE
 	install -Ds -m 755 powerbuttond $(DESTDIR)/usr/lib/hwsupport/powerbuttond
 	install -D -m 644 LICENSE $(DESTDIR)/usr/share/licenses/powerbuttond
-	install -D -m 644 powerbuttond@.service $(DESTDIR)/usr/lib/systemd/user
+	install -D -m 644 powerbuttond@.service $(DESTDIR)/usr/lib/systemd/user/powerbuttond@.service
