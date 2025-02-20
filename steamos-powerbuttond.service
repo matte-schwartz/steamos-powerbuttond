@@ -6,6 +6,3 @@ Requisite=gamescope-session.service
 ExecStart=/usr/lib/hwsupport/steamos-powerbuttond
 Restart=on-failure
 Slice=session.slice
-
-[Install]
-WantedBy=gamescope-session.service
