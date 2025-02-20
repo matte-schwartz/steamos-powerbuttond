@@ -32,3 +32,5 @@ install: all LICENSE
 	install -D -m 644 steamos-powerbuttond.service $(DESTDIR)/usr/lib/systemd/user/steamos-powerbuttond.service
 	install -D -m 644 steamos-power-button.rules $(DESTDIR)/usr/lib/udev/rules.d/80-steamos-power-button.rules
 	install -D -m 644 steamos-power-button.hwdb $(DESTDIR)/usr/lib/udev/hwdb.d/80-steamos-power-button.hwdb
+	install -d -m 755 $(DESTDIR)/usr/lib/systemd/user/gamescope-session.service.wants
+	ln -s ../steamos-powerbuttond.service $(DESTDIR)/usr/lib/systemd/user/gamescope-session.service.wants/
