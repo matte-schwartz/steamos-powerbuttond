@@ -1,3 +1,7 @@
 # This is the "AT Translated Set 2 keyboard" the BIOS uses to convey power button presses
 evdev:name:AT Translated Set 2 keyboard:dmi:*svnValve:*
+evdev:name:Power Button:dmi:*svnLENOVO:pn83L3:*
+evdev:name:Power Button:dmi:*svnLENOVO:pn83N6:*
+evdev:name:Power Button:dmi:*svnLENOVO:pn83Q2:*
+evdev:name:Power Button:dmi:*svnLENOVO:pn83Q3:*
  STEAMOS_POWER_BUTTON=1
