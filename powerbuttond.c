@@ -7,6 +7,7 @@
 #include <libevdev/libevdev.h>
 #include <libudev.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdbool.h>
@@ -15,6 +16,8 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#define MAX_DEVS 2
 
 extern char** environ;
 
@@ -38,11 +41,11 @@ struct libevdev* open_dev(const char* path) {
 	return dev;
 }
 
-struct libevdev* find_dev(void) {
+size_t find_devs(struct libevdev* devs[]) {
 	struct udev* udev = udev_new();
-	char* path = NULL;
+	size_t num_devs = 0;
 	if (!udev) {
-		return NULL;
+		return 0;
 	}
 	struct udev_enumerate* uenum = udev_enumerate_new(udev);
 	if (!uenum) {
@@ -65,9 +68,9 @@ struct libevdev* find_dev(void) {
 		goto out;
 	}
 
-	 struct udev_list_entry* devices = udev_enumerate_get_list_entry(uenum);
+	struct udev_list_entry* devices = udev_enumerate_get_list_entry(uenum);
 
-	 for (; devices && !path; devices = udev_list_entry_get_next(devices)) {
+	for (; devices && num_devs < MAX_DEVS; devices = udev_list_entry_get_next(devices)) {
 		const char* syspath = udev_list_entry_get_name(devices);
 		struct udev_device* dev = udev_device_new_from_syspath(udev, syspath);
 		if (!dev) {
@@ -75,10 +78,15 @@ struct libevdev* find_dev(void) {
 		}
 		const char* devpath = udev_device_get_devnode(dev);
 		if (devpath) {
-			path = strdup(devpath);
+			struct libevdev* evdev = open_dev(devpath);
+			if (evdev) {
+				printf("Found power button device at %s\n", devpath);
+				devs[num_devs] = evdev;
+				++num_devs;
+			}
 		}
 		udev_device_unref(dev);
-	 }
+	}
 
 out:
 	if (uenum) {
@@ -86,12 +94,7 @@ out:
 	}
 	udev_unref(udev);
 
-	if (path == NULL) {
-		return NULL;
-	}
-	struct libevdev* dev = open_dev(path);
-	free(path);
-	return dev;
+	return num_devs;
 }
 
 void do_press(const char* type) {
@@ -125,35 +128,69 @@ int main(int argc, char* argv[]) {
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGALRM, &sa, NULL);
 
-	struct libevdev* dev;
+	struct libevdev* devs[MAX_DEVS] = {0};
+	struct pollfd pfds[MAX_DEVS] = {0};
+	size_t num_devs = 0;
+
 	if (argc >= 2) {
-		dev = open_dev(argv[1]);
+		int i;
+		for (i = 0; i < argc - 1; ++i) {
+			devs[num_devs] = open_dev(argv[i + 1]);
+			if (devs[num_devs]) {
+				++num_devs;
+			}
+		}
 	} else {
-		dev = find_dev();
+		num_devs = find_devs(devs);
 	}
-	if (!dev) {
+	if (!num_devs) {
 		return 0;
+	}
+	size_t i;
+	for (i = 0; i < num_devs; ++i) {
+		pfds[i].fd = libevdev_get_fd(devs[i]);
+		pfds[i].events = POLLIN;
 	}
 
 	bool press_active = false;
 	while (true) {
-		struct input_event ev;
-		int res = libevdev_next_event(dev, LIBEVDEV_READ_FLAG_BLOCKING, &ev);
-		if (res == LIBEVDEV_READ_STATUS_SUCCESS) {
-			if (ev.type == EV_KEY && ev.code == KEY_POWER) {
-				if (ev.value == 1) {
-					press_active = true;
-					alarm(1);
-				} else if (press_active) {
+		for (i = 0; i < num_devs; ++i) {
+			pfds[i].fd = libevdev_get_fd(devs[i]);
+			pfds[i].revents = 0;
+		}
+
+		int res = poll(pfds, num_devs, -1);
+		if (res <= 0) {
+			continue;
+		}
+
+		for (i = 0; i < num_devs; ++i) {
+			if (pfds[i].revents & POLLIN) {
+				struct input_event ev;
+				res = libevdev_next_event(devs[i], LIBEVDEV_READ_FLAG_BLOCKING, &ev);
+				if (res == LIBEVDEV_READ_STATUS_SUCCESS) {
+					if (ev.type == EV_KEY) {
+						if (ev.code == KEY_POWER) {
+							if (ev.value == 1) {
+								press_active = true;
+								alarm(1);
+							} else if (press_active) {
+								press_active = false;
+								alarm(0);
+								do_press("short");
+							}
+						} else if (ev.code == KEY_LEFTMETA && ev.value == 1) {
+							press_active = false;
+							alarm(0);
+							do_press("long");
+						}
+					}
+				} else if (res == -EINTR && press_active) {
 					press_active = false;
 					alarm(0);
-					do_press("short");
+					do_press("long");
 				}
 			}
-		} else if (res == -EINTR && press_active) {
-			press_active = false;
-			alarm(0);
-			do_press("long");
 		}
 	}
 }
