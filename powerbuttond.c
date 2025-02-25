@@ -25,7 +25,7 @@ void signal_handler(int) {
 }
 
 struct libevdev* open_dev(const char* path) {
-	int fd = open(path, O_RDONLY);
+	int fd = open(path, O_RDONLY | O_NONBLOCK);
 	if (fd < 0) {
 		return NULL;
 	}
@@ -167,29 +167,31 @@ int main(int argc, char* argv[]) {
 		for (i = 0; i < num_devs; ++i) {
 			if (pfds[i].revents & POLLIN) {
 				struct input_event ev;
-				res = libevdev_next_event(devs[i], LIBEVDEV_READ_FLAG_BLOCKING, &ev);
-				if (res == LIBEVDEV_READ_STATUS_SUCCESS) {
-					if (ev.type == EV_KEY) {
-						if (ev.code == KEY_POWER) {
-							if (ev.value == 1) {
-								press_active = true;
-								alarm(1);
-							} else if (press_active) {
+				do {
+					res = libevdev_next_event(devs[i], LIBEVDEV_READ_FLAG_NORMAL, &ev);
+					if (res == LIBEVDEV_READ_STATUS_SUCCESS) {
+						if (ev.type == EV_KEY) {
+							if (ev.code == KEY_POWER) {
+								if (ev.value == 1) {
+									press_active = true;
+									alarm(1);
+								} else if (press_active) {
+									press_active = false;
+									alarm(0);
+									do_press("short");
+								}
+							} else if (ev.code == KEY_LEFTMETA && ev.value == 1) {
 								press_active = false;
 								alarm(0);
-								do_press("short");
+								do_press("long");
 							}
-						} else if (ev.code == KEY_LEFTMETA && ev.value == 1) {
-							press_active = false;
-							alarm(0);
-							do_press("long");
 						}
+					} else if (res == -EINTR && press_active) {
+						press_active = false;
+						alarm(0);
+						do_press("long");
 					}
-				} else if (res == -EINTR && press_active) {
-					press_active = false;
-					alarm(0);
-					do_press("long");
-				}
+				} while (libevdev_has_event_pending(devs[i]) > 0);
 			}
 		}
 	}
