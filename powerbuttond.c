@@ -103,6 +103,8 @@ void do_press(const char* type) {
 	char* home = getenv("HOME");
 	char* const args[] = {steam, "-ifrunning", press, NULL};
 
+	alarm(0);
+
 	snprintf(steam, sizeof(steam), "%s/.steam/root/ubuntu12_32/steam", home);
 	snprintf(press, sizeof(press), "steam://%spowerpress", type);
 
@@ -160,38 +162,43 @@ int main(int argc, char* argv[]) {
 		}
 
 		int res = poll(pfds, num_devs, -1);
-		if (res <= 0) {
+		if (res < 0 && errno == EINTR && press_active) {
+			press_active = false;
+			do_press("long");
+		} else if (res <= 0) {
 			continue;
 		}
 
 		for (i = 0; i < num_devs; ++i) {
-			if (pfds[i].revents & POLLIN) {
-				struct input_event ev;
-				do {
-					res = libevdev_next_event(devs[i], LIBEVDEV_READ_FLAG_NORMAL, &ev);
-					if (res == LIBEVDEV_READ_STATUS_SUCCESS) {
-						if (ev.type == EV_KEY) {
-							if (ev.code == KEY_POWER) {
-								if (ev.value == 1) {
-									press_active = true;
-									alarm(1);
-								} else if (press_active) {
-									press_active = false;
-									alarm(0);
-									do_press("short");
-								}
-							} else if (ev.code == KEY_LEFTMETA && ev.value == 1) {
-								press_active = false;
-								alarm(0);
-								do_press("long");
-							}
+			if (!(pfds[i].revents & POLLIN)) {
+				continue;
+			}
+			struct input_event ev;
+			do {
+				res = libevdev_next_event(devs[i], LIBEVDEV_READ_FLAG_NORMAL, &ev);
+				while (res == LIBEVDEV_READ_STATUS_SYNC) {
+					res = libevdev_next_event(devs[i], LIBEVDEV_READ_FLAG_SYNC, &ev);
+				}
+				if (res != LIBEVDEV_READ_STATUS_SUCCESS) {
+					break;
+				}
+				if (ev.type == EV_KEY) {
+					if (ev.code == KEY_POWER) {
+						if (ev.value == 1) {
+							press_active = true;
+							alarm(1);
+						} else if (press_active) {
+							do_press("short");
 						}
-					} else if (res == -EINTR && press_active) {
+					} else if (ev.code == KEY_LEFTMETA && ev.value == 1) {
 						press_active = false;
-						alarm(0);
 						do_press("long");
 					}
-				} while (libevdev_has_event_pending(devs[i]) > 0);
+				}
+			} while (libevdev_has_event_pending(devs[i]) > 0);
+			if (res == -EINTR && press_active) {
+				press_active = false;
+				do_press("long");
 			}
 		}
 	}
